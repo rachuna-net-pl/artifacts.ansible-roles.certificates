@@ -1,9 +1,8 @@
 # <img src="docs/linux.png" alt="linux" height="20"/> certificates
 
-Rola Ansible do zarządzania certyfikatami CA oraz certyfikatami TLS wydawanymi przez HashiCorp Vault PKI.
+Rola Ansible certificates — zarządzanie certyfikatami CA i TLS (Vault PKI) w infrastrukturze rachuna-net.pl.
 
 ---
-
 ## Wymagania
 
 - Ansible >= 2.14
@@ -11,6 +10,7 @@ Rola Ansible do zarządzania certyfikatami CA oraz certyfikatami TLS wydawanymi 
 - Zmienna środowiskowa `VAULT_TOKEN` ustawiona na hoście wykonującym playbook
 - Obsługiwane systemy: Debian, Ubuntu, Alpine, RHEL/CentOS 8+
 
+---
 ## Zmienne roli
 
 ### Zmienne domyślne
