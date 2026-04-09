@@ -1,0 +1,200 @@
+---
+- name: Gather OS family
+  ansible.builtin.setup:
+    gather_subset:
+      - "!all"
+      - "!min"
+      - distribution
+  when: ansible_os_family is not defined
+
+- name: Set OS-specific CA variables
+  ansible.builtin.set_fact:
+    _cert_ca_path: >-
+      {{ (ansible_os_family == 'RedHat') | ternary(
+        '/etc/pki/ca-trust/source/anchors',
+        (ansible_os_family == 'Alpine') | ternary(
+          '/usr/local/share/ca-certificates',
+          '/usr/local/share/ca-certificates')) }}
+    _cert_ca_update_cmd: >-
+      {{ (ansible_os_family == 'RedHat') | ternary(
+        'update-ca-trust extract',
+        'update-ca-certificates') }}
+    _cert_ca_extension: >-
+      {{ (ansible_os_family == 'RedHat') | ternary('pem', 'crt') }}
+
+- name: Fetch CA certificates
+  no_log: true
+  ansible.builtin.uri:
+    url: "{{ item.value.url }}"
+    method: GET
+    return_content: true
+    validate_certs: false
+  register: ca_certificates
+  loop: "{{ in_certificates | dict2items }}"
+  when: in_certificates | length > 0
+
+- name: Save CA certificates to system store
+  no_log: true
+  ansible.builtin.copy:
+    content: "{{ item.content }}"
+    dest: "{{ _cert_ca_path }}/{{ item.item.value.name }}.{{ _cert_ca_extension }}"
+    mode: "0644"
+  loop: "{{ ca_certificates.results }}"
+  when:
+    - ca_certificates is defined
+    - ca_certificates.results | length > 0
+  register: ca_certs_updated
+
+- name: Update CA certificate store
+  ansible.builtin.command: "{{ _cert_ca_update_cmd }}"
+  when: ca_certs_updated is changed
+  changed_when: false
+
+- name: Create directories for CA certificates in custom paths
+  no_log: true
+  ansible.builtin.file:
+    path: "{{ item.1 | dirname }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ ca_certificates.results | subelements('item.value.paths', skip_missing=true) }}"
+  when:
+    - ca_certificates is defined
+    - ca_certificates.results | length > 0
+
+- name: Copy CA certificates to custom paths
+  no_log: true
+  ansible.builtin.copy:
+    content: "{{ item.0.content }}"
+    dest: "{{ item.1 }}"
+    mode: "0644"
+  loop: "{{ ca_certificates.results | subelements('item.value.paths', skip_missing=true) }}"
+  when:
+    - ca_certificates is defined
+    - ca_certificates.results | length > 0
+
+- name: Prepare indexed TLS certificates
+  ansible.builtin.set_fact:
+    indexed_tls_certs: "{{ indexed_tls_certs | default([]) + [item | combine({'_cert_idx': cert_idx})] }}"
+  loop: "{{ in_tls_certificates }}"
+  loop_control:
+    index_var: cert_idx
+  no_log: true
+  when: in_tls_certificates | length > 0
+
+- name: Issue TLS certificates from Vault PKI
+  no_log: true
+  ansible.builtin.uri:
+    url: "{{ in_certificates_vault_addr }}/v1/{{ item.pki }}/issue/{{ item.role }}"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ lookup('env', 'VAULT_TOKEN') }}"
+    body_format: json
+    body:
+      common_name: "{{ item.common_name | default(ansible_fqdn) }}"
+      ttl: "{{ item.ttl | default('8760h') }}"
+      alt_names: "{{ item.alt_names | default([]) | join(',') }}"
+      ip_sans: "{{ item.ip_sans | default([]) | join(',') }}"
+    return_content: true
+    validate_certs: false
+  register: tls_certs_response
+  loop: "{{ in_tls_certificates }}"
+  when: in_tls_certificates | length > 0
+
+- name: Create directories for TLS certificates
+  no_log: true
+  ansible.builtin.file:
+    path: "{{ cert_path | dirname }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ indexed_tls_certs | subelements('cert_file_paths') }}"
+  loop_control:
+    label: "{{ cert_path | dirname }}"
+  vars:
+    cert_path: "{{ item.1 }}"
+  when:
+    - indexed_tls_certs is defined
+    - indexed_tls_certs | length > 0
+
+- name: Save TLS certificates
+  no_log: true
+  ansible.builtin.copy:
+    content: "{{ tls_certs_response.results[item.0._cert_idx].json.data.certificate }}"
+    dest: "{{ item.1 }}"
+    mode: "0644"
+  loop: "{{ indexed_tls_certs | subelements('cert_file_paths') }}"
+  loop_control:
+    label: "{{ item.1 }}"
+  when:
+    - indexed_tls_certs is defined
+    - indexed_tls_certs | length > 0
+
+- name: Create directories for TLS private keys
+  no_log: true
+  ansible.builtin.file:
+    path: "{{ key_path | dirname }}"
+    state: directory
+    mode: "0750"
+  loop: "{{ indexed_tls_certs | subelements('key_file_paths') }}"
+  loop_control:
+    label: "{{ key_path | dirname }}"
+  vars:
+    key_path: "{{ item.1 }}"
+  when:
+    - indexed_tls_certs is defined
+    - indexed_tls_certs | length > 0
+
+- name: Save TLS private keys
+  no_log: true
+  ansible.builtin.copy:
+    content: "{{ tls_certs_response.results[item.0._cert_idx].json.data.private_key }}"
+    dest: "{{ item.1 }}"
+    mode: "0644"
+  loop: "{{ indexed_tls_certs | subelements('key_file_paths') }}"
+  loop_control:
+    label: "{{ item.1 }}"
+  when:
+    - indexed_tls_certs is defined
+    - indexed_tls_certs | length > 0
+
+- name: Save TLS CA chains
+  no_log: true
+  ansible.builtin.copy:
+    content: "{{ tls_certs_response.results[loop_index].json.data.ca_chain | join('\n') }}"
+    dest: "{{ item.ca_file }}"
+    mode: "0644"
+  loop: "{{ in_tls_certificates }}"
+  loop_control:
+    index_var: loop_index
+  when:
+    - in_tls_certificates | length > 0
+    - item.ca_file is defined
+
+- name: Create directories for TLS PEM files
+  no_log: true
+  ansible.builtin.file:
+    path: "{{ pem_path | dirname }}"
+    state: directory
+    mode: "0750"
+  loop: "{{ indexed_tls_certs | subelements('pem_file_paths') }}"
+  loop_control:
+    label: "{{ pem_path | dirname }}"
+  vars:
+    pem_path: "{{ item.1 }}"
+  when:
+    - indexed_tls_certs is defined
+    - indexed_tls_certs | length > 0
+
+- name: Save TLS PEM files (cert + key)
+  no_log: true
+  ansible.builtin.copy:
+    content: |
+      {{ tls_certs_response.results[item.0._cert_idx].json.data.certificate }}
+      {{ tls_certs_response.results[item.0._cert_idx].json.data.private_key }}
+    dest: "{{ item.1 }}"
+    mode: "0600"
+  loop: "{{ indexed_tls_certs | subelements('pem_file_paths') }}"
+  loop_control:
+    label: "{{ item.1 }}"
+  when:
+    - indexed_tls_certs is defined
+    - indexed_tls_certs | length > 0
