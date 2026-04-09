@@ -75,6 +75,40 @@ in_tls_certificates:
             ca_file: /etc/nginx/ssl/ca-chain.crt
 ```
 
+## Przepływ działania roli
+
+```mermaid
+flowchart TD
+    START([START]) --> OS["Wykryj OS i ustaw ścieżki CA"]
+
+    OS --> CA["Pobierz CA z URL"]
+    OS --> TLS["Wydaj certyfikaty TLS\n(Vault PKI API)"]
+
+    subgraph ca ["Certyfikaty CA"]
+        CA --> CA_SAVE["Zapisz do /usr/local/share/ca-certificates\nlub /etc/pki/ca-trust/source/anchors"]
+        CA_SAVE --> CA_UPDATE["Uruchom update-ca-certificates\nlub update-ca-trust"]
+        CA_UPDATE --> CA_COPY["Kopiuj do dodatkowych ścieżek"]
+    end
+
+    subgraph tls ["Certyfikaty TLS"]
+        TLS --> TLS_CERT["Zapisz certyfikat (.crt)"]
+        TLS --> TLS_KEY["Zapisz klucz prywatny (.key)"]
+        TLS --> TLS_CA["Zapisz łańcuch CA"]
+        TLS --> TLS_PEM["Zapisz PEM (cert + key)"]
+    end
+
+    CA_COPY --> FINISH([KONIEC])
+    TLS_CERT --> FINISH
+    TLS_KEY --> FINISH
+    TLS_CA --> FINISH
+    TLS_PEM --> FINISH
+
+    style START fill:#4a9eff,color:#fff
+    style FINISH fill:#4a9eff,color:#fff
+    style ca fill:#e8f5e9,stroke:#43a047
+    style tls fill:#fff3e0,stroke:#fb8c00
+```
+
 ## Co robi rola
 
 1. **Certyfikaty CA** — pobiera certyfikaty CA z podanych URL-i i instaluje je w systemowym magazynie zaufanych certyfikatów (obsługa Debian/Ubuntu, Alpine, RHEL/CentOS)

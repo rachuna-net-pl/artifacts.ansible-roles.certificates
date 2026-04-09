@@ -148,7 +148,7 @@
   ansible.builtin.copy:
     content: "{{ tls_certs_response.results[item.0._cert_idx].json.data.private_key }}"
     dest: "{{ item.1 }}"
-    mode: "0644"
+    mode: "0600"
   loop: "{{ indexed_tls_certs | subelements('key_file_paths') }}"
   loop_control:
     label: "{{ item.1 }}"
