@@ -1,93 +1,111 @@
-# certificates
+# <img src="docs/linux.png" alt="linux" height="20"/> certificates
 
+Rola Ansible do zarządzania certyfikatami CA oraz certyfikatami TLS wydawanymi przez HashiCorp Vault PKI.
 
+---
 
-## Getting started
+## Wymagania
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+- Ansible >= 2.14
+- HashiCorp Vault z włączonym silnikiem PKI (dla certyfikatów TLS)
+- Zmienna środowiskowa `VAULT_TOKEN` ustawiona na hoście wykonującym playbook
+- Obsługiwane systemy: Debian, Ubuntu, Alpine, RHEL/CentOS 8+
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## Zmienne roli
 
-## Add your files
+### Zmienne domyślne
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+| Zmienna | Domyślna wartość | Opis |
+|---------|-----------------|------|
+| `in_certificates_vault_addr` | `https://vault.rachuna-net.pl` | Adres serwera HashiCorp Vault |
+| `in_certificates` | `{}` | Słownik certyfikatów CA do pobrania |
+| `in_tls_certificates` | `[]` | Lista certyfikatów TLS do wydania przez Vault PKI |
 
+### Struktura `in_certificates`
+
+```yaml
+in_certificates:
+  my_ca:
+    name: my-ca-cert
+    url: https://example.com/ca.pem
+    paths:                          # opcjonalne - dodatkowe ścieżki
+      - /etc/app/ca.crt
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/pl.rachuna-net/artifacts/ansible-roles/certificates.git
-git branch -M main
-git push -uf origin main
+
+### Struktura `in_tls_certificates`
+
+```yaml
+in_tls_certificates:
+  - pki: pki_int                    # ścieżka silnika PKI w Vault
+    role: my-role                   # nazwa roli PKI
+    common_name: app.example.com    # opcjonalne, domyślnie ansible_fqdn
+    ttl: "8760h"                    # opcjonalne, domyślnie 8760h (1 rok)
+    alt_names:                      # opcjonalne
+      - app2.example.com
+    ip_sans:                        # opcjonalne
+      - 10.0.0.1
+    cert_file_paths:                # ścieżki zapisu certyfikatu
+      - /etc/app/tls.crt
+    key_file_paths:                 # ścieżki zapisu klucza prywatnego
+      - /etc/app/tls.key
+    pem_file_paths:                 # opcjonalne - certyfikat + klucz w jednym pliku
+      - /etc/app/tls.pem
+    ca_file: /etc/app/ca-chain.crt  # opcjonalne - łańcuch CA
 ```
 
-## Integrate with your tools
+## Przykład użycia
 
-* [Set up project integrations](https://gitlab.com/pl.rachuna-net/artifacts/ansible-roles/certificates/-/settings/integrations)
+```yaml
+- hosts: webservers
+  roles:
+    - role: pl_rachuna_net.certificates
+      vars:
+        in_certificates:
+          internal_ca:
+            name: internal-ca
+            url: https://vault.example.com/v1/pki/ca/pem
+        in_tls_certificates:
+          - pki: pki_int
+            role: webserver
+            common_name: "{{ inventory_hostname }}"
+            cert_file_paths:
+              - /etc/nginx/ssl/cert.crt
+            key_file_paths:
+              - /etc/nginx/ssl/cert.key
+            ca_file: /etc/nginx/ssl/ca-chain.crt
+```
 
-## Collaborate with your team
+## Co robi rola
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+1. **Certyfikaty CA** — pobiera certyfikaty CA z podanych URL-i i instaluje je w systemowym magazynie zaufanych certyfikatów (obsługa Debian/Ubuntu, Alpine, RHEL/CentOS)
+2. **Certyfikaty TLS** — wydaje certyfikaty TLS przez Vault PKI API i zapisuje je w podanych ścieżkach
+3. **Uprawnienia** — klucze prywatne i pliki PEM zapisywane z uprawnieniami `0600`, certyfikaty z `0644`
 
-## Test and Deploy
+## Bezpieczeństwo
 
-Use the built-in continuous integration in GitLab.
+- Wszystkie zadania operujące na certyfikatach i kluczach mają włączone `no_log: true`
+- Klucze prywatne zapisywane z uprawnieniami `0600`
+- Katalogi kluczy prywatnych tworzone z uprawnieniami `0750`
+- Token Vault pobierany ze zmiennej środowiskowej, nie z plików
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+---
 
-***
+## Contributions
 
-# Editing this README
+Jeśli masz pomysły na ulepszenia, zgłoś problemy, rozwidl repozytorium lub utwórz Merge Request. Wszystkie wkłady są mile widziane!
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+[Contributions](CONTRIBUTING.md)
 
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+---
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Projekt licencjonowany jest na warunkach własnej licencji niekomercyjnej. Szczegóły: [LICENSE](LICENSE).
+
+---
+
+## Author Information
+
+### &emsp; Maciej Rachuna
+
+# <img src="docs/logo.png" alt="rachuna-net.pl" height="100"/>

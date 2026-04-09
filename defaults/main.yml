@@ -1,0 +1,4 @@
+---
+in_certificates_vault_addr: "https://vault.rachuna-net.pl"
+in_certificates: {}
+in_tls_certificates: []
