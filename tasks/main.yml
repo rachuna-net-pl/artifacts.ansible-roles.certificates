@@ -5,22 +5,22 @@
       - "!all"
       - "!min"
       - distribution
-  when: ansible_os_family is not defined
+  when: ansible_facts['os_family'] is not defined
 
 - name: Set OS-specific CA variables
   ansible.builtin.set_fact:
     _cert_ca_path: >-
-      {{ (ansible_os_family == 'RedHat') | ternary(
+      {{ (ansible_facts['os_family'] == 'RedHat') | ternary(
         '/etc/pki/ca-trust/source/anchors',
-        (ansible_os_family == 'Alpine') | ternary(
+        (ansible_facts['os_family'] == 'Alpine') | ternary(
           '/usr/local/share/ca-certificates',
           '/usr/local/share/ca-certificates')) }}
     _cert_ca_update_cmd: >-
-      {{ (ansible_os_family == 'RedHat') | ternary(
+      {{ (ansible_facts['os_family'] == 'RedHat') | ternary(
         'update-ca-trust extract',
         'update-ca-certificates') }}
     _cert_ca_extension: >-
-      {{ (ansible_os_family == 'RedHat') | ternary('pem', 'crt') }}
+      {{ (ansible_facts['os_family'] == 'RedHat') | ternary('pem', 'crt') }}
 
 - name: Fetch CA certificates
   no_log: true
@@ -32,6 +32,7 @@
   register: ca_certificates
   loop: "{{ in_certificates | dict2items }}"
   when: in_certificates | length > 0
+  check_mode: false
 
 - name: Save CA certificates to system store
   no_log: true
@@ -90,7 +91,7 @@
       X-Vault-Token: "{{ lookup('env', 'VAULT_TOKEN') }}"
     body_format: json
     body:
-      common_name: "{{ item.common_name | default(ansible_fqdn) }}"
+      common_name: "{{ item.common_name | default(ansible_facts['fqdn']) }}"
       ttl: "{{ item.ttl | default('8760h') }}"
       alt_names: "{{ item.alt_names | default([]) | join(',') }}"
       ip_sans: "{{ item.ip_sans | default([]) | join(',') }}"
@@ -99,6 +100,7 @@
   register: tls_certs_response
   loop: "{{ in_tls_certificates }}"
   when: in_tls_certificates | length > 0
+  check_mode: false
 
 - name: Create directories for TLS certificates
   no_log: true
