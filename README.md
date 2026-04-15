@@ -134,12 +134,12 @@ Jeśli masz pomysły na ulepszenia, zgłoś problemy, rozwidl repozytorium lub u
 
 ## License
 
-Projekt licencjonowany jest na warunkach własnej licencji niekomercyjnej. Szczegóły: [LICENSE](LICENSE).
+[Licencja](LICENSE) oparta na zasadach Creative Commons BY-NC-SA 4.0, dostosowana do potrzeb projektu.
 
 ---
 
 ## Author Information
 
-### &emsp; Maciej Rachuna
+### Maciej Rachuna
 
 # <img src="docs/logo.png" alt="rachuna-net.pl" height="100"/>
