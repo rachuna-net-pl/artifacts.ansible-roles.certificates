@@ -1,4 +1,4 @@
-# <img src="docs/linux.png" alt="linux" height="20"/> certificates
+# <img src="docs/ansible.png" alt="ansible" height="20"/> certificates
 
 Rola Ansible certificates — zarządzanie certyfikatami CA i TLS (Vault PKI) w infrastrukturze rachuna-net.pl.
 
@@ -19,6 +19,7 @@ Rola Ansible certificates — zarządzanie certyfikatami CA i TLS (Vault PKI) w 
 |---------|-----------------|------|
 | `in_certificates_vault_addr` | `https://vault.rachuna-net.pl` | Adres serwera HashiCorp Vault |
 | `in_certificates` | `{}` | Słownik certyfikatów CA do pobrania |
+| `in_certificates_bundle_paths` | `[]` | Opcjonalna lista ścieżek plików z połączonymi certyfikatami CA z `in_certificates` |
 | `in_tls_certificates` | `[]` | Lista certyfikatów TLS do wydania przez Vault PKI |
 
 ### Struktura `in_certificates`
@@ -30,6 +31,9 @@ in_certificates:
     url: https://example.com/ca.pem
     paths:                          # opcjonalne - dodatkowe ścieżki
       - /etc/app/ca.crt
+
+in_certificates_bundle_paths:           # opcjonalne - wszystkie CA w jednym pliku
+  - /etc/app/all-ca.crt
 ```
 
 ### Struktura `in_tls_certificates`
@@ -60,6 +64,8 @@ in_tls_certificates:
   roles:
     - role: pl_rachuna_net.certificates
       vars:
+        in_certificates_bundle_paths:
+          - /etc/app/ca-bundle.crt
         in_certificates:
           internal_ca:
             name: internal-ca
@@ -77,37 +83,7 @@ in_tls_certificates:
 
 ## Przepływ działania roli
 
-```mermaid
-flowchart TD
-    START([START]) --> OS["Wykryj OS i ustaw ścieżki CA"]
-
-    OS --> CA["Pobierz CA z URL"]
-    OS --> TLS["Wydaj certyfikaty TLS\n(Vault PKI API)"]
-
-    subgraph ca ["Certyfikaty CA"]
-        CA --> CA_SAVE["Zapisz do /usr/local/share/ca-certificates\nlub /etc/pki/ca-trust/source/anchors"]
-        CA_SAVE --> CA_UPDATE["Uruchom update-ca-certificates\nlub update-ca-trust"]
-        CA_UPDATE --> CA_COPY["Kopiuj do dodatkowych ścieżek"]
-    end
-
-    subgraph tls ["Certyfikaty TLS"]
-        TLS --> TLS_CERT["Zapisz certyfikat (.crt)"]
-        TLS --> TLS_KEY["Zapisz klucz prywatny (.key)"]
-        TLS --> TLS_CA["Zapisz łańcuch CA"]
-        TLS --> TLS_PEM["Zapisz PEM (cert + key)"]
-    end
-
-    CA_COPY --> FINISH([KONIEC])
-    TLS_CERT --> FINISH
-    TLS_KEY --> FINISH
-    TLS_CA --> FINISH
-    TLS_PEM --> FINISH
-
-    style START fill:#4a9eff,color:#fff
-    style FINISH fill:#4a9eff,color:#fff
-    style ca fill:#e8f5e9,stroke:#43a047
-    style tls fill:#fff3e0,stroke:#fb8c00
-```
+![vault_cert_flow](docs/vault_cert_flow.drawio.svg)
 
 ## Co robi rola
 

@@ -16,7 +16,6 @@ galaxy_info:
       versions:
         - focal
         - jammy
-        - noble
     - name: Alpine
       versions:
         - all

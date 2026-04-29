@@ -26,7 +26,7 @@ ansible-playbook --syntax-check tests/test.yml
 ## Struktura
 
 ```
-defaults/main.yml    — domyślne wartości zmiennych (in_certificates_vault_addr, in_certificates, in_tls_certificates)
+defaults/main.yml    — domyślne wartości zmiennych (in_certificates_vault_addr, in_certificates, in_certificates_bundle_paths, in_tls_certificates)
 meta/main.yml        — metadane Ansible Galaxy
 tasks/main.yml       — główna logika roli (CA + TLS)
 ```
