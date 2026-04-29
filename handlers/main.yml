@@ -1,0 +1,4 @@
+---
+- name: Update CA certificate store
+  ansible.builtin.command: "{{ _cert_ca_update_cmd }}"
+  changed_when: false

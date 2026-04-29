@@ -44,12 +44,7 @@
   when:
     - ca_certificates is defined
     - ca_certificates.results | length > 0
-  register: ca_certs_updated
-
-- name: Update CA certificate store
-  ansible.builtin.command: "{{ _cert_ca_update_cmd }}"
-  when: ca_certs_updated is changed
-  changed_when: false
+  notify: Update CA certificate store
 
 - name: Create directories for CA certificates in custom paths
   no_log: true
@@ -70,6 +65,33 @@
     mode: "0644"
   loop: "{{ ca_certificates.results | subelements('item.value.paths', skip_missing=true) }}"
   when:
+    - ca_certificates is defined
+    - ca_certificates.results | length > 0
+
+- name: Create directory for bundled CA certificates
+  no_log: true
+  ansible.builtin.file:
+    path: "{{ item | dirname }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ in_certificates_bundle_paths }}"
+  when:
+    - in_certificates_bundle_paths | length > 0
+    - ca_certificates is defined
+    - ca_certificates.results | length > 0
+
+- name: Save bundled CA certificates
+  no_log: true
+  ansible.builtin.copy:
+    content: |
+      {% for certificate in ca_certificates.results -%}
+      {{ certificate.content | trim }}
+      {% endfor -%}
+    dest: "{{ item }}"
+    mode: "0644"
+  loop: "{{ in_certificates_bundle_paths }}"
+  when:
+    - in_certificates_bundle_paths | length > 0
     - ca_certificates is defined
     - ca_certificates.results | length > 0
 
@@ -123,7 +145,7 @@
     content: "{{ tls_certs_response.results[item.0._cert_idx].json.data.certificate }}"
     dest: "{{ item.1 }}"
     mode: "0644"
-  loop: "{{ indexed_tls_certs | default([])  | subelements('cert_file_paths') }}"
+  loop: "{{ indexed_tls_certs | default([]) | subelements('cert_file_paths') }}"
   loop_control:
     label: "{{ item.1 }}"
   when:
